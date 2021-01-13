@@ -22,15 +22,6 @@
 #include "nvs_flash.h"
 #include "string.h"
 
-#ifdef CONFIG_EXAMPLE_FIRMWARE_UPGRADE_URL_FROM_STDIN
-#include "esp_vfs_dev.h"
-#include "driver/uart.h"
-#endif
-
-#if CONFIG_EXAMPLE_CONNECT_WIFI
-#include "esp_wifi.h"
-#endif
-
 /* For OLD-WiFi-Mesh light Upgrade */
 #ifndef CONFIG_UPGRADE_FIRMWARE_FLAG
 #define CONFIG_UPGRADE_FIRMWARE_FLAG   "** MUPGRADE_FIRMWARE_FLAG **"
@@ -40,8 +31,12 @@
 #define UPGRADE_FIRMWARE_FLAG_SIZE      32
 
 static const char *TAG = "simple_ota_example";
-extern const uint8_t server_cert_pem_start[] asm("_binary_ca_cert_pem_start");
-extern const uint8_t server_cert_pem_end[] asm("_binary_ca_cert_pem_end");
+
+extern const uint8_t bootloader_start[] asm("_binary_bootloader_bin_start");
+extern const uint8_t bootloader_end[] asm("_binary_bootloader_bin_end");
+
+extern const uint8_t partitions_start[] asm("_binary_partition_table_bin_start");
+extern const uint8_t partitions_end[] asm("_binary_partition_table_bin_end");
 
 /* FreeRTOS event group to signal when we are connected & ready to make a request */
 static EventGroupHandle_t wifi_event_group;
@@ -137,6 +132,10 @@ static void initialise_wifi(void)
     ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_STA) );
     ESP_ERROR_CHECK( esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
     ESP_ERROR_CHECK( esp_wifi_start() );
+
+    /* Ensure to disable any WiFi power save mode, this allows best throughput
+     * and hence timings for overall OTA operation. */
+    esp_wifi_set_ps(WIFI_PS_NONE);
 }
 
 void simple_ota_example_task(void *pvParameter)
@@ -151,27 +150,8 @@ void simple_ota_example_task(void *pvParameter)
 
     esp_http_client_config_t config = {
         .url = CONFIG_EXAMPLE_FIRMWARE_UPGRADE_URL,
-        // .cert_pem = (char *)server_cert_pem_start,
         .event_handler = _http_event_handler,
     };
-
-#ifdef CONFIG_EXAMPLE_FIRMWARE_UPGRADE_URL_FROM_STDIN
-    char url_buf[OTA_URL_SIZE];
-    if (strcmp(config.url, "FROM_STDIN") == 0) {
-        example_configure_stdin_stdout();
-        fgets(url_buf, OTA_URL_SIZE, stdin);
-        int len = strlen(url_buf);
-        url_buf[len - 1] = '\0';
-        config.url = url_buf;
-    } else {
-        ESP_LOGE(TAG, "Configuration mismatch: wrong firmware upgrade image url");
-        abort();
-    }
-#endif
-
-#ifdef CONFIG_EXAMPLE_SKIP_COMMON_NAME_CHECK
-    config.skip_cert_common_name_check = true;
-#endif
 
     esp_err_t ret = esp_https_ota(&config);
     if (ret == ESP_OK) {
@@ -185,6 +165,7 @@ void simple_ota_example_task(void *pvParameter)
 }
 #define TAG "ota_boot"
 
+// bootloader_start
 static const uint8_t bootloader_hex_buff[] = {
     0xE9, 0x04, 0x02, 0x20, 0xE8, 0x06, 0x08, 0x40, 0xEE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 00000000
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x30, 0x00, 0xFF, 0x3F, 0x04, 0x00, 0x00, 0x00, // 00000010
@@ -1698,6 +1679,7 @@ static const uint8_t bootloader_hex_buff[] = {
 // ble_mesh, data, nvs,      0x3cc000, 64k
 // coredump, data, coredump, 0x3dc000, 64K
 // reserved, data, 0xfe,     0x3ec000, 64K
+// partitions_start
 static const uint8_t partition_hex_buff[] = {
     0xAA, 0x50, 0x01, 0x02, 0x00, 0x90, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x6E, 0x76, 0x73, 0x00, // 00000000
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 00000010
@@ -1998,13 +1980,6 @@ void app_main()
     }
 
     initialise_wifi();
-
-#if CONFIG_EXAMPLE_CONNECT_WIFI
-    /* Ensure to disable any WiFi power save mode, this allows best throughput
-     * and hence timings for overall OTA operation.
-     */
-    esp_wifi_set_ps(WIFI_PS_NONE);
-#endif // CONFIG_EXAMPLE_CONNECT_WIFI
 
     xTaskCreate(&simple_ota_example_task, "ota_example_task", 8192, NULL, 5, NULL);
 }
