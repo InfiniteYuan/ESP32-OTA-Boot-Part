@@ -147,6 +147,7 @@ void simple_ota_example_task(void *pvParameter)
                         false, true, portMAX_DELAY);
     ESP_LOGI(TAG, "Starting OTA example");
     ESP_LOGI(TAG, "Connected to WiFi network! Attempting to connect to server...");
+    ESP_LOGI(TAG, "OTA URL: %s", CONFIG_EXAMPLE_FIRMWARE_UPGRADE_URL);
 
     esp_http_client_config_t config = {
         .url = CONFIG_EXAMPLE_FIRMWARE_UPGRADE_URL,
@@ -1980,6 +1981,17 @@ void app_main()
     }
 
     initialise_wifi();
+
+#if CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE
+    esp_ota_img_states_t ota_state = 0x00;
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (esp_ota_get_state_partition(running, &ota_state) == ESP_OK) {
+        if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
+            vTaskDelay(pdMS_TO_TICKS(10 * 1000)); // Delay 10s
+            esp_ota_mark_app_valid_cancel_rollback();
+        }
+    }
+#endif
 
     xTaskCreate(&simple_ota_example_task, "ota_example_task", 8192, NULL, 5, NULL);
 }
