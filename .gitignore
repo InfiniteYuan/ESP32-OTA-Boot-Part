@@ -31,6 +31,8 @@ examples/**/sdkconfig
 examples/**/sdkconfig.old
 examples/**/build
 
+**/sdkconfig.old
+
 # Doc build artifacts
 docs/_build/
 docs/doxygen_sqlite3.db
