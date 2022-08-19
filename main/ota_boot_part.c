@@ -1710,7 +1710,7 @@ esp_err_t update_partition_table()
 
     if (boot_read_buff[3] != 0x20) { // SPI Flash Freq != 40MHz
         // erase bootloader
-        ESP_LOGD(TAG, "erase bootloader: 28KB");
+        ESP_LOGI(TAG, "erase bootloader: 28KB");
         ESP_ERROR_CHECK(spi_flash_erase_range(0x1000, 28 * 1024));
         ESP_LOGI(TAG, "write bootloader...");
         ESP_ERROR_CHECK(spi_flash_write(0x1000, bootloader_hex_buff, sizeof(bootloader_hex_buff)));
@@ -1840,6 +1840,7 @@ void app_main()
 
     vTaskDelay(pdMS_TO_TICKS(20 * 1000)); // Delay 10s
 
+    ESP_LOGW(TAG, "update partition table starting……");
     /**
      * @brief Update Partition Table For Mesh Kit Light.
      */
